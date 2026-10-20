@@ -1,0 +1,15 @@
+# CodeIXE WordPress SEO Connector initial translation template.
+# Full UI internationalization is tracked as release hardening.
+msgid ""
+msgstr ""
+"Project-Id-Version: CodeIXE WordPress SEO Connector 0.1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: includes/class-abilities.php
+msgid "CodeIXE SEO"
+msgstr ""
+
+#: includes/class-abilities.php
+msgid "Authenticated SEO audits and proposals."
+msgstr ""

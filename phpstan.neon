@@ -1,0 +1,8 @@
+parameters:
+    level: 0
+    paths:
+        - includes
+    scanFiles:
+        - vendor/php-stubs/wordpress-stubs/wordpress-stubs.php
+    bootstrapFiles:
+        - tests/constants.php

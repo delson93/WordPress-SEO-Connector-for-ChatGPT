@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<ruleset name="CodeIXE SEO">
+  <description>WordPress standards audit. Remaining MVP findings are tracked as release hardening.</description>
+  <file>codeixe-wp-seo-connector.php</file><file>includes</file><file>uninstall.php</file>
+  <rule ref="vendor/wp-coding-standards/wpcs/WordPress"/>
+  <config name="minimum_supported_wp_version" value="6.9"/>
+  <config name="testVersion" value="8.2-"/>
+</ruleset>

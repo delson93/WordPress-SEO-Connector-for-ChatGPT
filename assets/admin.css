@@ -1,0 +1,8 @@
+.codeixe-seo { max-width: 1200px; }
+.codeixe-seo h2 { margin-top: 2rem; }
+.codeixe-seo pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; }
+.codeixe-seo td { width: 43%; vertical-align: top; }
+.codeixe-seo article, .codeixe-seo details { background: #fff; padding: 1rem; margin: 1rem 0; border: 1px solid #c3c4c7; }
+.codeixe-seo summary { cursor: pointer; }
+.codeixe-seo input[type=number] { width: 6rem; }
+@media (max-width: 700px) { .codeixe-seo table, .codeixe-seo tbody, .codeixe-seo tr, .codeixe-seo td, .codeixe-seo th { display: block; width: auto; } }

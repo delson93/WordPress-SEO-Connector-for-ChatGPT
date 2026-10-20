@@ -1,0 +1,69 @@
+name: Validate and package
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.2'
+            wordpress: '6.9'
+          - php: '8.4'
+            wordpress: 'latest'
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -pwordpress" --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, mbstring, dom
+          tools: wp-cli, phpunit:10
+          coverage: none
+      - name: Syntax
+        run: find . -name '*.php' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
+      - name: JavaScript syntax
+        run: node --check assets/admin.js
+      - name: Install disposable WordPress
+        run: |
+          wp core download --path=/tmp/codeixe-wp --version=${{ matrix.wordpress }}
+          wp config create --path=/tmp/codeixe-wp --dbname=codeixe_test --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp db create --path=/tmp/codeixe-wp
+          wp core install --path=/tmp/codeixe-wp --url=https://example.org --title='Connector CI' --admin_user=admin --admin_password=disposable-ci-only --admin_email=test@example.org --skip-email
+          ln -s "$GITHUB_WORKSPACE" /tmp/codeixe-wp/wp-content/plugins/codeixe-wp-seo-connector
+          wp plugin activate codeixe-wp-seo-connector --path=/tmp/codeixe-wp
+      - name: Permission and mutation integration tests
+        run: phpunit --bootstrap /tmp/codeixe-wp/wp-load.php tests/ConnectorTest.php
+  quality-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer
+      - run: composer install --no-interaction --prefer-dist
+      - name: Static analysis
+        run: vendor/bin/phpstan analyse --no-progress
+      - name: WordPress standards audit (MVP hardening)
+        if: always()
+        run: vendor/bin/phpcs --standard=phpcs.xml
+  package:
+    runs-on: ubuntu-latest
+    needs: integration
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/build.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codeixe-wp-seo-connector
+          path: dist/codeixe-wp-seo-connector.zip
