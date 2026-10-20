@@ -42,11 +42,11 @@ final class Audit {
 	public static function post( $id, $rendered = false ) {
 		$post = Plugin::target( $id );
 		if ( is_wp_error( $post ) ) { return $post; }
-		$data = Metadata::get( $id );
+		$data = Metadata::effective( $id );
 		$result = self::analyze( $post->post_content, $data['seo_title'] ?: $post->post_title, $data['description'] );
 		$result['id'] = $id;
 		$result['url'] = get_permalink( $id );
-		$result['metadata_source'] = Metadata::enabled() ? 'codeixe_fallback' : 'stored_codeixe_values_not_active';
+		$result['metadata_source'] = $data['source'];
 		$result['providers'] = Metadata::providers();
 		$result['limitations'] = array( 'Stored content excludes theme output, shortcodes and dynamic blocks.', 'No Google rankings, indexing status or traffic data are available.', 'Metadata findings must be checked against rendered output when another provider is active.', 'Attachment ALT updates do not rewrite ALT already embedded in post content.' );
 		if ( ! get_option( 'blog_public' ) ) { $result['issues'][] = self::issue( 'site_discourages_indexing', 'warning', 'blog_public=0', 'Confirm whether this site should be public before changing Reading settings.', 'site_settings' ); }

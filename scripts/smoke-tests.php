@@ -19,8 +19,9 @@ namespace {
     $_SERVER['HTTP_HOST'] = 'example.org';
     $_SERVER['REQUEST_URI'] = '/';
     require $argv[1];
-    require dirname(__DIR__) . '/tests/ConnectorTest.php';
-    $test = new \ConnectorTest();
+    $testClass = ($argv[2] ?? '') === 'yoast' ? 'YoastTest' : 'ConnectorTest';
+    require dirname(__DIR__) . '/tests/' . $testClass . '.php';
+    $test = new $testClass();
     $setup = new \ReflectionMethod($test, 'setUp');
     $teardown = new \ReflectionMethod($test, 'tearDown');
     $count = 0;

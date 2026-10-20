@@ -1,56 +1,45 @@
 # CodeIXE WordPress SEO Connector
 
-Free, self-hosted WordPress SEO auditing and approval-based editing for compatible AI clients.
+Connect a private Custom GPT to a self-hosted WordPress site to audit content and apply authorized SEO fixes.
 
-**Developer:** [CodeIXE AI Solutions](https://codeixe.com/)  
-**License:** GPL-2.0-or-later  
-**Version:** 0.1.0, initial MVP  
-**Requirements:** WordPress 6.9+, PHP 8.2+, HTTPS. Use maintained WordPress and PHP releases.
+**Version:** 0.2.0. **Developer:** [CodeIXE AI Solutions](https://codeixe.com/). **License:** GPL-2.0-or-later.
 
-No Jetpack, WordPress.com account, tracking, CodeIXE subscription or proprietary cloud service is required. Your AI client may have its own charges.
+WordPress 6.9+, PHP 8.2+, HTTPS. No Jetpack, WordPress.com account, CodeIXE subscription or proprietary cloud is required. Your AI client has its own availability and pricing.
 
-## What this version actually does
+## Download and connect
 
-- Authenticated, permission-checked REST API and optional WordPress Abilities/MCP tools.
-- Ten-object audit batches for published posts, pages and image attachments.
-- Stored-content checks for title/description length, heading jumps, multiple content H1s, missing ALT attributes, short-content candidates, indexing preferences and plain permalinks.
-- Optional same-site public HTML inspection for description, canonical, H1, robots and social metadata, with bounded safe HTTP requests.
-- Exact proposals for post titles, content, excerpts, image attachment ALT and connector-owned SEO metadata.
-- Human administrator review of before/after values, apply, history, and conflict-aware rollback.
-- Optional singular-page metadata fallback. It yields to Yoast SEO, Rank Math, All in One SEO and SEOPress. No third-party protected metadata or databases are modified.
-- Dashboard, editable-object reader, image list, diagnostics, JSON and CSV audit exports.
-- Installable ZIP build, CI, and WordPress integration tests.
+[Download the installable 0.2.0 ZIP](packages/codeixe-wp-seo-connector-0.2.0.zip?raw=true).
 
-**This is not an autonomous “fix every SEO problem” product.** It does not guarantee rankings, revenue, indexing or traffic. It does not invent ALT descriptions or publish AI text without review. Length/word-count findings are guidance, not search-engine penalties.
+1. Upload through WordPress Plugins > Add New > Upload. Replace the previous version if installed.
+2. Open CodeIXE SEO, enable services, and create a dedicated WordPress Editor user.
+3. For Yoast, enable the Yoast override setting and leave fallback metadata off.
+4. Generate an Actions key for that Editor in the plugin. Store it only in your private GPT's authentication settings.
+5. In a Custom GPT's Actions editor, import `https://YOUR-SITE/wp-json/codeixe-seo/v1/openapi`. Choose API Key > Bearer, enter the key, and keep the GPT **Only me**.
+6. To authorize remote application, turn read-only off, enable remote application and select exactly which fields may change. Start with SEO title/description, ALT and excerpt. Article rewriting requires separate `post_content` authorization.
+7. Follow [the complete setup and GPT instructions](docs/chatgpt-actions.md). Test the connection and a staging edit before applying changes to production.
 
-## Install
+ChatGPT can then propose and apply supported fixes in the configured GPT, subject to the website's field policy and ChatGPT's confirmations. Installation does not attach tools to an arbitrary existing conversation. No end-to-end connection to your ChatGPT account is claimed until you complete configuration and test it.
 
-1. Download the `codeixe-wp-seo-connector.zip` artifact from a successful GitHub Actions build, or build it using `python3 scripts/build.py`.
-2. WordPress → Plugins → Add New Plugin → Upload Plugin → choose the ZIP → activate.
-3. Open **CodeIXE SEO**, enable services, and keep read-only mode enabled initially.
-4. Run an audit. If no SEO plugin/theme manages metadata, optionally enable the fallback after checking the rendered HTML.
-5. Configure a dedicated WordPress editor account and Application Password in your client's secure credential store. Never paste passwords into a chat.
-6. For proposals, disable read-only mode. Review and approve each proposal in WordPress Change History.
-7. Purge the hosting/page/CDN cache, then re-audit rendered output. The plugin does not claim to purge third-party caches.
+## Supported features
 
-Uploading GitHub's generic source archive may create a different folder name. Prefer the generated installable ZIP. No Composer, Node, SSH or CLI is required on the website.
+- Authenticated REST API, private Custom GPT Actions and optional WordPress MCP abilities.
+- Per-object permissions, dedicated route-scoped hashed Actions key, revocation and disabled-by-default remote writes.
+- Ten-object post/page/image audit batches, stored-content checks and optional safe public HTML inspection.
+- Title/description length guidance, heading jumps, multiple H1s, missing ALT, short-content review, canonical/social/robots inspection and site indexing/permalink flags.
+- Exact proposed replacements for SEO title, description, image ALT, excerpt, post title and content. Heading/internal-link/inline-ALT fixes use reviewed content changes.
+- Administrator-controlled field authorization, exact proposal digest, before/after history, stale-edit refusal and rollback.
+- Yoast title/description and social output integration through documented filters. No protected Yoast database writes; no duplicate tag generator.
+- Opt-in singular-page metadata fallback when no SEO provider is active.
+- JSON/CSV exports, diagnostics, build automation and tests.
 
-## Can ChatGPT connect directly?
+## Limits
 
-Not from installation alone. This plugin exposes WordPress REST endpoints and optional MCP abilities. The official WordPress MCP Adapter is a separate dependency for MCP. Application Passwords work with compatible Basic-auth clients. ChatGPT remote MCP user authentication requires compatible OAuth infrastructure; this MVP does **not** bundle an OAuth authorization server or a tested ChatGPT bridge. Do not register a privileged endpoint with “no authentication”.
+This is still an early version, not a guarantee to fix every SEO issue or improve rankings/revenue. No automatic keyword/image-description generation occurs inside WordPress; the configured GPT proposes accurate edits from the content it reads. No OpenAI API key is required by this plugin.
 
-See [connection methods](docs/connections.md), [API](docs/api.md), [security](docs/security.md), [architecture and scope](docs/architecture.md), and [testing/release](docs/releases.md).
+Yoast integration changes rendered overrides, not Yoast editor fields, scores, global homepage settings or schema. Rank Math/AIOSEO/SEOPress are detected and deferred; their metadata writes are unsupported. There is no full-site duplicate/broken-link crawler, taxonomy/archive audit, Search Console import, schema validator, unattended scheduler or complete translation coverage. PHP/WPCS production-hardening work remains.
 
-## Known gaps and roadmap
+Custom GPT Actions and remote MCP are different integrations. MCP uses the optional official adapter. OAuth for ChatGPT remote MCP is not bundled. The Actions key works only with the REST namespace, not MCP or other WordPress APIs.
 
-- No bundled OAuth server or end-to-end verified ChatGPT connection.
-- No writes into Yoast/Rank Math/AIOSEO/SEOPress; integration is detection and deferral, not full provider editing.
-- No taxonomy/archive/homepage-specific audits, whole-site duplicate detection, broken-link crawler, robots.txt/sitemap network checks, Search Console import or structured-data validation.
-- No automatic internal-link suggestions or keyword generation. A client can read content and propose relevant links in `post_content`.
-- No unattended scheduled scans, bulk approval, automatic retention pruning or network-wide multisite support. Audits are bounded request batches and are not persisted; proposal history is retained until explicitly removed/uninstalled.
-- Theme-generated tags, JS-generated metadata, templates, redirects and server/CDN problems require separate investigation.
-- Attachment ALT changes affect the media library; existing inline image markup may require a separate reviewed content change.
-- UI is a single native administration page with sections, not nine independent admin screens. Translation coverage is incomplete in this MVP.
-- Apply is not a database-wide transaction. A hook/database failure can leave a partial update; it is recorded as failed for manual recovery.
+Use a private GPT. Sharing an API-key GPT shares its website access. Do not paste keys into chats. Purge external page/CDN caches after edits and verify rendered output. Failed/interrupted updates may need manual recovery; the write sequence is verified but not a database-wide transaction.
 
-The initial version needs staging acceptance on your hosting stack before production use. See the validation record in `docs/releases.md` for checks actually executed.
+See [API](docs/api.md), [connections](docs/connections.md), [security](docs/security.md), [architecture](docs/architecture.md), [release validation](docs/releases.md), and [changelog](CHANGELOG.md).

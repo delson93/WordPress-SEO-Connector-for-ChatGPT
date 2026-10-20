@@ -24,7 +24,7 @@ final class Changes {
 			}
 			if ( 'attachment' === $post->post_type && 'alt' !== $key ) { return new \WP_Error( 'codeixe_attachment', 'Only ALT changes are supported for attachments.', array( 'status' => 400 ) ); }
 			if ( 'alt' === $key && ( 'attachment' !== $post->post_type || ! wp_attachment_is_image( $post ) ) ) { return new \WP_Error( 'codeixe_image', 'ALT requires an image attachment.', array( 'status' => 400 ) ); }
-			if ( in_array( $key, Metadata::FIELDS, true ) && ! Metadata::enabled() ) { return new \WP_Error( 'codeixe_provider', 'Enable fallback metadata only when no other SEO provider manages it. Third-party metadata writes are not supported.', array( 'status' => 409 ) ); }
+			if ( in_array( $key, Metadata::FIELDS, true ) && ! Metadata::writable( $key ) ) { return new \WP_Error( 'codeixe_provider', 'Enable the relevant metadata integration. Yoast supports title/description overrides; other providers are deferred.', array( 'status' => 409 ) ); }
 			if ( in_array( $key, array( 'noindex', 'nofollow' ), true ) && ! in_array( $value, array( '', '1' ), true ) ) { return new \WP_Error( 'codeixe_robots', 'Robots values must be empty or 1.', array( 'status' => 400 ) ); }
 			if ( 'canonical' === $key && '' !== $value && ( 'https' !== wp_parse_url( $value, PHP_URL_SCHEME ) || wp_parse_url( $value, PHP_URL_HOST ) !== wp_parse_url( home_url(), PHP_URL_HOST ) || wp_parse_url( $value, PHP_URL_USER ) || wp_parse_url( $value, PHP_URL_PASS ) ) ) { return new \WP_Error( 'codeixe_canonical', 'Canonical must be an HTTPS URL on this site.', array( 'status' => 400 ) ); }
 			$clean[ $key ] = in_array( $key, array( 'post_content', 'post_excerpt' ), true ) ? wp_kses_post( $value ) : sanitize_text_field( $value );
@@ -51,6 +51,7 @@ final class Changes {
 		$record['id'] = $change_id;
 		$saved = self::save( $record );
 		if ( is_wp_error( $saved ) ) { wp_delete_post( $change_id, true ); return $saved; }
+		$record['digest'] = Actions::digest( $record );
 		return $record;
 	}
 
@@ -62,6 +63,7 @@ final class Changes {
 		$target = Plugin::target( $record['target'] );
 		if ( is_wp_error( $target ) ) { return $target; }
 		$record['id'] = $id;
+		$record['digest'] = Actions::digest( $record );
 		return $record;
 	}
 
@@ -72,13 +74,17 @@ final class Changes {
 		return get_post_meta( $record['id'], '_codeixe_record', true ) === $json ? true : new \WP_Error( 'codeixe_storage', 'Could not save change history.' );
 	}
 
-	public static function apply( $id, $rollback = false ) {
-		// Only the nonce-protected, interactive administrator form calls this method.
-		if ( ! current_user_can( 'manage_options' ) || ! is_ssl() || Plugin::settings()['readonly'] || ! Plugin::settings()['enabled'] ) {
+	public static function apply( $id, $rollback = false, $remote_digest = null ) {
+		// Remote calls require an independently configured, field-scoped policy.
+		if ( ( null === $remote_digest && ! current_user_can( 'manage_options' ) ) || ! is_ssl() || Plugin::settings()['readonly'] || ! Plugin::settings()['enabled'] ) {
 			return new \WP_Error( 'codeixe_approval', 'Administrator approval, HTTPS and write mode are required.', array( 'status' => 403 ) );
 		}
 		$record = self::get( $id );
 		if ( is_wp_error( $record ) ) { return $record; }
+		if ( null !== $remote_digest ) {
+			$authorization = Actions::authorize( $record, $remote_digest );
+			if ( is_wp_error( $authorization ) ) { return $authorization; }
+		}
 		$lock = 'codeixe_lock_' . $record['target'];
 		if ( ! add_option( $lock, time(), '', false ) ) { return new \WP_Error( 'codeixe_locked', 'Another operation holds this object lock. See recovery documentation.', array( 'status' => 409 ) ); }
 		try {
@@ -92,6 +98,7 @@ final class Changes {
 			if ( is_wp_error( $valid ) ) { return $valid; }
 			// Keep the exact original snapshot for rollback; it originated in WordPress.
 			$record['state'] = $rollback ? 'rolling_back' : 'applying';
+			$record['approval_method'] = null === $remote_digest ? 'administrator_form' : 'administrator_scoped_actions_policy';
 			$record['approved_by'] = get_current_user_id();
 			$record['approved_at'] = gmdate( 'c' );
 			$saved = self::save( $record );

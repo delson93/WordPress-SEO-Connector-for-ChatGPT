@@ -18,6 +18,47 @@ final class Metadata {
 		return Plugin::settings()['fallback'] && ! self::providers() && ! apply_filters( 'codeixe_seo_external_provider', false );
 	}
 
+	public static function yoast_enabled() {
+		return Plugin::settings()['yoast_overrides'] && array( 'Yoast SEO' ) === self::providers() && ! apply_filters( 'codeixe_seo_external_provider', false );
+	}
+
+	public static function writable( $field ) {
+		return self::enabled() || ( self::yoast_enabled() && in_array( $field, array( 'seo_title', 'description' ), true ) );
+	}
+
+	public static function register_yoast() {
+		foreach ( array( 'wpseo_title' => 'seo_title', 'wpseo_metadesc' => 'description', 'wpseo_opengraph_title' => 'seo_title', 'wpseo_opengraph_desc' => 'description', 'wpseo_twitter_title' => 'seo_title', 'wpseo_twitter_description' => 'description' ) as $hook => $field ) {
+			add_filter( $hook, function ( $value, $presentation = null ) use ( $field ) {
+				return self::yoast_value( $value, $field, $presentation );
+			}, 20, 2 );
+		}
+	}
+
+	public static function yoast_value( $value, $field, $presentation = null ) {
+		if ( ! self::yoast_enabled() ) { return $value; }
+		$id = 0;
+		if ( isset( $presentation->model->object_type ) ) {
+			if ( 'post' !== $presentation->model->object_type ) { return $value; }
+			$id = (int) $presentation->model->object_id;
+		} elseif ( is_singular() ) { $id = get_queried_object_id(); }
+		if ( ! $id || post_password_required( $id ) ) { return $value; }
+		$override = (string) get_post_meta( $id, '_codeixe_' . $field, true );
+		return '' !== $override ? $override : $value;
+	}
+
+	public static function effective( $id ) {
+		$data = self::get( $id );
+		if ( function_exists( 'YoastSEO' ) && in_array( 'Yoast SEO', self::providers(), true ) ) {
+			$surface = YoastSEO()->meta->for_post( $id );
+			if ( $surface ) {
+				$title = (string) $surface->title;
+				$description = (string) $surface->description;
+				return array( 'seo_title' => self::yoast_enabled() && $data['seo_title'] ? $data['seo_title'] : $title, 'description' => self::yoast_enabled() && $data['description'] ? $data['description'] : $description, 'source' => self::yoast_enabled() ? 'yoast_with_codeixe_overrides' : 'yoast' );
+			}
+		}
+		return array( 'seo_title' => $data['seo_title'] ?: get_the_title( $id ), 'description' => $data['description'], 'source' => self::enabled() ? 'codeixe_fallback' : 'stored_values_not_active' );
+	}
+
 	public static function get( $id ) {
 		$result = array();
 		foreach ( self::FIELDS as $key ) {

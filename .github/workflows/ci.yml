@@ -42,6 +42,10 @@ jobs:
           wp plugin activate codeixe-wp-seo-connector --path=/tmp/codeixe-wp
       - name: Permission and mutation integration tests
         run: phpunit --bootstrap /tmp/codeixe-wp/wp-load.php tests/ConnectorTest.php
+      - name: Verify Yoast 28.7 integration
+        run: |
+          wp plugin install wordpress-seo --version=28.7 --activate --path=/tmp/codeixe-wp
+          phpunit --bootstrap /tmp/codeixe-wp/wp-load.php tests/YoastTest.php
   quality-audit:
     runs-on: ubuntu-latest
     continue-on-error: true

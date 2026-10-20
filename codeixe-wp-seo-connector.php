@@ -3,7 +3,7 @@
  * Plugin Name: CodeIXE WordPress SEO Connector
  * Plugin URI: https://codeixe.com/
  * Description: Authenticated SEO audits and approval-based changes for compatible AI clients.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Requires at least: 6.9
  * Requires PHP: 8.2
  * Author: CodeIXE AI Solutions
@@ -17,7 +17,7 @@ namespace CodeIXE\SEO;
 
 defined( 'ABSPATH' ) || exit;
 define( 'CODEIXE_SEO_FILE', __FILE__ );
-foreach ( array( 'class-plugin', 'class-metadata', 'class-audit', 'class-changes', 'class-api', 'class-admin', 'class-abilities' ) as $file ) {
+foreach ( array( 'class-plugin', 'class-metadata', 'class-audit', 'class-changes', 'class-api', 'class-admin', 'class-abilities', 'class-actions' ) as $file ) {
 	require_once __DIR__ . '/includes/' . $file . '.php';
 }
 Plugin::boot();

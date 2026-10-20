@@ -2,7 +2,7 @@
 
 Services default OFF, read-only defaults ON, fallback output defaults OFF. HTTPS is required; configure trusted proxy HTTPS detection in WordPress rather than accepting arbitrary forwarded headers. Native REST cookie authentication requires the normal REST nonce. Application Passwords are handled by WordPress and never stored by this plugin.
 
-Every REST route and ability checks authentication/capability. Every object read/proposal checks `edit_post`. Human approval requires `manage_options`, a browser login session, HTTPS and a valid admin nonce. Approval is never an AI-callable tool. Disable services to block this connector, or revoke the specific Application Password in the WordPress user profile. Other WordPress APIs are not disabled by this setting.
+Every privileged REST route and ability checks authentication/capability. The public OpenAPI schema contains no private data. Every object read/proposal checks `edit_post`. Human approval requires `manage_options`, a browser login session, HTTPS and a valid admin nonce. Remote apply is available only through the scoped Actions policy described below; MCP has no apply tool. Disable services to block this connector, or revoke the specific Application Password in the WordPress user profile. Other WordPress APIs are not disabled by this setting.
 
 Proposals retain content snapshots as private non-public custom posts. These may contain unpublished content and should be protected in database backups. JSON/CSV exports may also contain sensitive page information. No credentials or authorization header contents are returned. Diagnostics report presence only. There is no telemetry or default external HTTP request.
 
@@ -19,3 +19,13 @@ Metadata fallback adds no public branding. Known SEO plugins automatically disab
 ## Hosting diagnostics
 
 Test `/status` using your dedicated account. If authentication fails, check that Nginx, Varnish, Apache and PHP preserve Authorization and bypass authenticated REST/MCP caching. Do not log the header. Check WordPress HTTPS detection, Application Password availability, user capabilities and security-plugin/WAF exclusions. Do not globally disable the WAF. The optional public HTML audit is a limited loopback test, not a complete hosting diagnostic suite.
+
+## Actions write policy, version 0.2.0
+
+A nonce-protected administrator form generates a 256-bit random route-scoped key for a dedicated non-administrator editor. Only a SHA-256 hash, user ID and creation time are stored. The raw key is displayed once on a no-store response. Key rotation/revocation is immediate; services/HTTPS and current user capability are checked on every request. The key cannot log in to WordPress, authenticate MCP, or access other REST namespaces. REST callback user context is restored after processing to avoid leaking identity into other batched operations.
+
+Remote writes default off, including on upgrade. The administrator must explicitly authorize remote application and select allowed fields. Only proposals created by the associated editor can be remotely applied, with a digest binding the exact target/before/after values. The same snapshot conflict guard protects apply/rollback. Field authorization is broad across objects the editor may edit, not a one-off approval per article: select it deliberately. The GPT must follow the user's instruction and ChatGPT's consequential-action confirmations. A digest is integrity checking, not evidence of human approval.
+
+Keep the API-key GPT private. Anyone able to invoke that shared credential could use the approved scope. The key is not an OAuth token and must never be pasted into a chat. The old Application Password exposed in a conversation should be revoked independently.
+
+Yoast owns tag generation. Overrides use documented output filters and are retained only in CodeIXE-owned metadata. Deactivating this integration restores Yoast's own output. Its editor fields, scores and schema are not synchronized. Audit effective/rendered output rather than assuming plugin-editor previews changed.

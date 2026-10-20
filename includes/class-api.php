@@ -5,6 +5,7 @@ defined( 'ABSPATH' ) || exit;
 
 final class API {
 	public static function register() {
+		register_rest_route( 'codeixe-seo/v1', '/openapi', array( 'methods' => 'GET', 'callback' => array( Actions::class, 'schema' ), 'permission_callback' => '__return_true' ) );
 		$routes = array(
 			'/status' => array( 'GET', 'status' ),
 			'/posts' => array( 'GET', 'posts' ),
@@ -12,21 +13,25 @@ final class API {
 			'/posts/(?P<id>\d+)/audit' => array( 'GET', 'audit' ),
 			'/audit' => array( 'GET', 'batch' ),
 			'/proposals' => array( 'POST', 'propose' ),
+			'/proposals/(?P<id>\d+)/apply' => array( 'POST', 'apply' ),
+			'/proposals/(?P<id>\d+)/rollback' => array( 'POST', 'rollback' ),
 			'/history' => array( 'GET', 'history' ),
 		);
 		foreach ( $routes as $path => $route ) {
 			register_rest_route( 'codeixe-seo/v1', $path, array( 'methods' => $route[0], 'callback' => function ( $request ) use ( $route ) {
-				$result = call_user_func( array( self::class, $route[1] ), $request );
+				try {
+					$result = call_user_func( array( self::class, $route[1] ), $request );
+				} finally { Actions::restore(); }
 				if ( is_wp_error( $result ) ) { return $result; }
 				$response = rest_ensure_response( $result );
 				$response->header( 'Cache-Control', 'private, no-store' );
 				return $response;
-			}, 'permission_callback' => array( Plugin::class, 'permission' ) ) );
+			}, 'permission_callback' => array( Actions::class, 'permission' ) ) );
 		}
 	}
 
 	public static function status() {
-		return array( 'version' => '0.1.0', 'site_url' => home_url(), 'site_name' => get_bloginfo( 'name' ), 'settings' => Plugin::settings(), 'providers' => Metadata::providers(), 'fallback_active' => Metadata::enabled(), 'abilities_api' => function_exists( 'wp_register_ability' ), 'mcp_adapter' => class_exists( '\WP\MCP\Core\McpAdapter' ), 'application_passwords' => wp_is_application_passwords_available(), 'authorization_header_present' => ! empty( $_SERVER['HTTP_AUTHORIZATION'] ) || ! empty( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ), 'https' => is_ssl(), 'cron_disabled' => defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON, 'approval' => 'WordPress administrator UI only', 'third_party_metadata_writes' => false );
+		return array( 'version' => '0.2.0', 'site_url' => home_url(), 'site_name' => get_bloginfo( 'name' ), 'settings' => Plugin::settings(), 'providers' => Metadata::providers(), 'fallback_active' => Metadata::enabled(), 'abilities_api' => function_exists( 'wp_register_ability' ), 'mcp_adapter' => class_exists( '\WP\MCP\Core\McpAdapter' ), 'application_passwords' => wp_is_application_passwords_available(), 'authorization_header_present' => ! empty( $_SERVER['HTTP_AUTHORIZATION'] ) || ! empty( $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ), 'https' => is_ssl(), 'cron_disabled' => defined( 'DISABLE_WP_CRON' ) && DISABLE_WP_CRON, 'approval' => 'Administrator UI or explicitly scoped Actions policy', 'yoast_overrides_active' => Metadata::yoast_enabled(), 'third_party_metadata_writes' => false );
 	}
 
 	public static function posts( $request ) {
@@ -45,7 +50,7 @@ final class API {
 		$id = absint( $request['id'] );
 		$post = Plugin::target( $id );
 		if ( is_wp_error( $post ) ) { return $post; }
-		return array( 'id' => $id, 'title' => $post->post_title, 'content' => $post->post_content, 'excerpt' => $post->post_excerpt, 'status' => $post->post_status, 'url' => get_permalink( $id ), 'metadata' => Metadata::get( $id ), 'providers' => Metadata::providers(), 'alt' => (string) get_post_meta( $id, '_wp_attachment_image_alt', true ), 'untrusted_content' => true );
+		return array( 'id' => $id, 'title' => $post->post_title, 'content' => $post->post_content, 'excerpt' => $post->post_excerpt, 'status' => $post->post_status, 'url' => get_permalink( $id ), 'metadata' => Metadata::get( $id ), 'effective_metadata' => Metadata::effective( $id ), 'providers' => Metadata::providers(), 'alt' => (string) get_post_meta( $id, '_wp_attachment_image_alt', true ), 'untrusted_content' => true );
 	}
 
 	public static function audit( $request ) {
@@ -66,6 +71,18 @@ final class API {
 
 	public static function propose( $request ) {
 		return Changes::propose( absint( $request['id'] ), $request['changes'] ?? null );
+	}
+
+	public static function apply( $request ) {
+		$limit = Plugin::throttle( 'apply', 20 );
+		if ( is_wp_error( $limit ) ) { return $limit; }
+		return Changes::apply( absint( $request['id'] ), false, $request['digest'] ?? '' );
+	}
+
+	public static function rollback( $request ) {
+		$limit = Plugin::throttle( 'apply', 20 );
+		if ( is_wp_error( $limit ) ) { return $limit; }
+		return Changes::apply( absint( $request['id'] ), true, $request['digest'] ?? '' );
 	}
 
 	public static function history( $request ) {

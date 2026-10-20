@@ -4,7 +4,14 @@ Build locally with `python3 scripts/build.py`. The ZIP contains a stable `codeix
 
 GitHub Actions validates PHP/JS syntax and runs PHPUnit integration tests against disposable WordPress/MySQL installations (WordPress 6.9/PHP 8.2 and current stable/PHP 8.4). Packaging depends on passing integration tests. Static analysis and WordPress Coding Standards are a separate advisory quality job while MVP hardening is outstanding. A green integration/package job does not mean a clean WPCS audit or WordPress.org approval.
 
-## Validation record
+## Version 0.2.0 validation
+
+- PHP 8.2 WebAssembly / WordPress 6.9 / official SQLite integration: 20 connector/security tests, 64 assertions, zero failures using the dependency-free runner.
+- With official Yoast SEO 28.7 installed: 3 integration tests, 16 assertions, zero failures. Verified output overrides, a single description tag, unchanged protected fields, rollback and disabled integration behavior. The disposable fixture supplies normal title-tag theme support.
+- GitHub CI now also runs the Yoast test suite against MySQL in both WordPress/PHP matrix combinations. See Actions for actual remote results.
+- The user's production site and ChatGPT account were not authenticated or modified. End-to-end GPT Actions setup must be completed by the owner. Live ChatGPT confirmation behavior is not claimed as tested.
+
+## Version 0.1.0 validation record
 
 Executed on 2026-10-20:
 

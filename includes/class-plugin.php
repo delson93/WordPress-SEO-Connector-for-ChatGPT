@@ -10,6 +10,7 @@ final class Plugin {
 		add_action( 'admin_menu', array( Admin::class, 'menu' ) );
 		add_action( 'admin_enqueue_scripts', array( Admin::class, 'assets' ) );
 		add_action( 'admin_post_codeixe_seo_action', array( Admin::class, 'action' ) );
+		Metadata::register_yoast();
 		add_action( 'wp_head', array( Metadata::class, 'head' ), 5 );
 		add_filter( 'pre_get_document_title', array( Metadata::class, 'title' ), 20 );
 		add_filter( 'get_canonical_url', array( Metadata::class, 'canonical' ), 20, 2 );
@@ -23,7 +24,7 @@ final class Plugin {
 	}
 
 	public static function settings() {
-		return wp_parse_args( get_option( 'codeixe_seo_settings', array() ), array( 'enabled' => false, 'readonly' => true, 'fallback' => false, 'cleanup' => false ) );
+		return wp_parse_args( get_option( 'codeixe_seo_settings', array() ), array( 'enabled' => false, 'readonly' => true, 'fallback' => false, 'cleanup' => false, 'yoast_overrides' => false, 'remote_apply' => false, 'remote_fields' => array() ) );
 	}
 
 	public static function permission() {

@@ -4,6 +4,7 @@ use CodeIXE\SEO\Plugin;
 use CodeIXE\SEO\Changes;
 use CodeIXE\SEO\Audit;
 use CodeIXE\SEO\Metadata;
+use CodeIXE\SEO\Actions;
 
 final class ConnectorTest extends TestCase {
     private int $postId;
@@ -15,10 +16,12 @@ final class ConnectorTest extends TestCase {
         $this->adminId = $user ? $user->ID : wp_insert_user(['user_login' => 'connector-test-admin', 'user_pass' => wp_generate_password(), 'role' => 'administrator']);
         wp_set_current_user($this->adminId);
         update_option('codeixe_seo_settings', ['enabled' => true, 'readonly' => false, 'fallback' => true]);
-        foreach (['propose', 'audit', 'batch', 'fetch'] as $action) { delete_transient('codeixe_rate_' . $this->adminId . '_' . $action); }
+        foreach (['propose', 'audit', 'batch', 'fetch', 'apply'] as $action) { delete_transient('codeixe_rate_' . $this->adminId . '_' . $action); }
         $this->postId = wp_insert_post(['post_title' => 'Original title', 'post_content' => '<p>Original content.</p>', 'post_type' => 'post', 'post_status' => 'publish', 'post_author' => $this->adminId]);
     }
     protected function tearDown(): void {
+        Actions::restore();
+        delete_option('codeixe_seo_action_key');
         wp_set_current_user($this->adminId);
         wp_delete_post($this->postId, true);
         foreach (get_posts(['post_type' => 'codeixe_change', 'post_status' => 'private', 'numberposts' => -1]) as $record) { wp_delete_post($record->ID, true); }
@@ -125,6 +128,82 @@ final class ConnectorTest extends TestCase {
         self::assertNotNull($ability);
         wp_set_current_user(0);
         self::assertWPError($ability->execute([]));
+    }
+    private function actionKey(): string {
+        $user = get_user_by('login', 'connector-action-editor');
+        $id = $user ? $user->ID : wp_insert_user(['user_login' => 'connector-action-editor', 'user_pass' => wp_generate_password(), 'role' => 'editor']);
+        delete_transient('codeixe_rate_' . $id . '_propose');
+        return Actions::create_key($id);
+    }
+    private function authenticateAction(string $key): void {
+        wp_set_current_user(0);
+        $request = new WP_REST_Request('GET', '/codeixe-seo/v1/status');
+        $request->set_header('Authorization', 'Bearer ' . $key);
+        self::assertSame(true, Actions::permission($request));
+    }
+    public function testActionKeyScopedAndRevocable(): void {
+        $key = $this->actionKey();
+        self::assertSame(68, strlen($key));
+        self::assertSame(hash('sha256', $key), get_option('codeixe_seo_action_key')['hash']);
+        $this->authenticateAction($key);
+        Actions::restore();
+        self::assertSame(0, get_current_user_id());
+        $request = new WP_REST_Request('GET', '/wp/v2/users');
+        $request->set_header('Authorization', 'Bearer ' . $key);
+        self::assertWPError(Actions::permission($request));
+        delete_option('codeixe_seo_action_key');
+        $request = new WP_REST_Request('GET', '/codeixe-seo/v1/status');
+        $request->set_header('Authorization', 'Bearer ' . $key);
+        self::assertWPError(Actions::permission($request));
+    }
+    public function testRemoteWritesRequirePolicyScopeAndDigest(): void {
+        $key = $this->actionKey();
+        $this->authenticateAction($key);
+        $proposal = Changes::propose($this->postId, ['description' => 'Action description']);
+        self::assertIsArray($proposal);
+        self::assertWPError(Changes::apply($proposal['id'], false, $proposal['digest']));
+        $settings = Plugin::settings();
+        $settings['remote_apply'] = true;
+        $settings['remote_fields'] = ['seo_title'];
+        update_option('codeixe_seo_settings', $settings);
+        self::assertWPError(Changes::apply($proposal['id'], false, $proposal['digest']));
+        $settings['remote_fields'] = ['description'];
+        update_option('codeixe_seo_settings', $settings);
+        self::assertWPError(Changes::apply($proposal['id'], false, str_repeat('0',64)));
+        self::assertSame('applied', Changes::apply($proposal['id'], false, $proposal['digest'])['state']);
+        self::assertSame('Action description', Metadata::get($this->postId)['description']);
+        self::assertSame('rolled_back', Changes::apply($proposal['id'], true, $proposal['digest'])['state']);
+    }
+    public function testActionCannotApplyAnotherUsersProposal(): void {
+        $proposal = Changes::propose($this->postId, ['description' => 'Admin proposal']);
+        $key = $this->actionKey();
+        $settings = Plugin::settings();
+        $settings['remote_apply'] = true;
+        $settings['remote_fields'] = ['description'];
+        update_option('codeixe_seo_settings', $settings);
+        $this->authenticateAction($key);
+        self::assertWPError(Changes::apply($proposal['id'], false, $proposal['digest']));
+    }
+    public function testActionsCannotCreateAdministratorCredential(): void {
+        self::assertWPError(Actions::create_key($this->adminId));
+    }
+    public function testBearerRestIdentityDoesNotLeak(): void {
+        $key = $this->actionKey();
+        wp_set_current_user(0);
+        $request = new WP_REST_Request('GET', '/codeixe-seo/v1/status');
+        $request->set_header('Authorization', 'Bearer ' . $key);
+        $response = rest_get_server()->dispatch($request);
+        self::assertSame(200, $response->get_status());
+        self::assertSame(0, get_current_user_id());
+        $request = new WP_REST_Request('GET', '/wp/v2/users/me');
+        $request->set_header('Authorization', 'Bearer ' . $key);
+        self::assertSame(401, rest_get_server()->dispatch($request)->get_status());
+    }
+    public function testOpenApiContainsConsequentialWriteOperations(): void {
+        $schema = Actions::schema();
+        self::assertSame(true, $schema['paths']['/proposals/{id}/apply']['post']['x-openai-isConsequential']);
+        self::assertSame('bearer', $schema['components']['securitySchemes']['connectorKey']['scheme']);
+        self::assertSame('0.2.0', $schema['info']['version']);
     }
     private static function assertWPError($result): void { self::assertInstanceOf(WP_Error::class, $result); }
 }
